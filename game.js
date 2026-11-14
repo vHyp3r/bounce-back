@@ -19,6 +19,7 @@ const loadingBar = document.querySelector("#loading-bar");
 const loadingStatus = document.querySelector("#loading-status");
 const logoImage = document.querySelector("#logo-image");
 const startButton = document.querySelector("#start-button");
+const splashLevelSelectButton = document.querySelector("#splash-level-select-button");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
@@ -27,6 +28,7 @@ const spaceBackground = new Image();
 spaceBackground.src = "assets/level-2-space.png";
 const logoSource = new Image();
 let processedLogo;
+let logoReady = false;
 let playerSprite;
 
 const playerImage = new Image();
@@ -66,7 +68,6 @@ monsterImage.addEventListener("load", () => {
   monsterSprite = spriteCanvas;
 });
 
-logoSource.src = "assets/bounce-back-logo.png";
 logoSource.addEventListener("load", () => {
   const logoCanvas = document.createElement("canvas");
   logoCanvas.width = 380;
@@ -101,7 +102,13 @@ logoSource.addEventListener("load", () => {
   logoContext.putImageData(imageData, 0, 0);
   processedLogo = logoCanvas.toDataURL();
   logoImage.src = processedLogo;
+  logoReady = true;
 });
+logoSource.addEventListener("error", () => {
+  logoImage.src = "assets/bounce-back-logo.png";
+  logoReady = true;
+});
+logoSource.src = "assets/bounce-back-logo.png";
 
 const levels = [
   {
@@ -701,7 +708,7 @@ function preloadAssets() {
   });
 
   const finishLoading = () => {
-    if (loaded !== assets.length) {
+    if (loaded !== assets.length || !logoReady) {
       window.setTimeout(finishLoading, 50);
       return;
     }
@@ -711,11 +718,13 @@ function preloadAssets() {
   finishLoading();
 }
 
-function startGame() {
+function startGame(openLevelSelect = false) {
   startupScreen.classList.add("is-hidden");
   loadLevel(0);
   requestAnimationFrame(frame);
+  if (openLevelSelect) showLevelSelect();
 }
 
 startButton.addEventListener("click", startGame, { once: true });
+splashLevelSelectButton.addEventListener("click", () => startGame(true), { once: true });
 preloadAssets();
