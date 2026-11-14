@@ -18,5 +18,7 @@ Then visit `http://localhost:8000`.
 - `W`, `↑`, or `Space` to jump
 - `P` or the Pause button to pause/resume
 - `R` to restart
+- Reach the flags to activate checkpoints. Losing a life returns you to the latest flag.
+- Complete a level to restart it, open level select, or continue to the next level.
 
 Collect the coins, avoid the red enemies, and reach the yellow flag.

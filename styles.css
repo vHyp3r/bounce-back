@@ -136,6 +136,27 @@ button {
   transition: transform 160ms ease, background 160ms ease;
 }
 
+.message-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.message-actions button {
+  margin-top: 24px;
+}
+
+.message-actions button:nth-child(2) {
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: rgba(30, 45, 70, 0.9);
+}
+
+.message-actions button:nth-child(2):hover {
+  color: #172033;
+}
+
 button:hover {
   background: #ffe28a;
   transform: translateY(-2px);
