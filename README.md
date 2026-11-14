@@ -16,6 +16,7 @@ Then visit `http://localhost:8000`.
 
 - `A` / `D` or `←` / `→` to move
 - `W`, `↑`, or `Space` to jump
+- `P` or the Pause button to pause/resume
 - `R` to restart
 
 Collect the coins, avoid the red enemies, and reach the yellow flag.

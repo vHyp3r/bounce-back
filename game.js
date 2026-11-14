@@ -7,10 +7,33 @@ const messageKicker = document.querySelector("#message-kicker");
 const messageTitle = document.querySelector("#message-title");
 const messageCopy = document.querySelector("#message-copy");
 const restartButton = document.querySelector("#restart-button");
+const pauseButton = document.querySelector("#pause-button");
+const playerImage = new Image();
+let playerSprite;
+
+playerImage.src = "assets/star-player.png";
+playerImage.addEventListener("load", () => {
+  const spriteCanvas = document.createElement("canvas");
+  spriteCanvas.width = 320;
+  spriteCanvas.height = 320;
+  const spriteContext = spriteCanvas.getContext("2d", { willReadFrequently: true });
+  spriteContext.drawImage(playerImage, 500, 200, 360, 360, 0, 0, 320, 320);
+  const imageData = spriteContext.getImageData(0, 0, spriteCanvas.width, spriteCanvas.height);
+
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const red = imageData.data[index];
+    const green = imageData.data[index + 1];
+    const blue = imageData.data[index + 2];
+    if (red > 245 && green > 245 && blue > 245) imageData.data[index + 3] = 0;
+  }
+
+  spriteContext.putImageData(imageData, 0, 0);
+  playerSprite = spriteCanvas;
+});
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
-const worldWidth = 2500;
+const worldWidth = 3400;
 const gravity = 0.55;
 const keys = new Set();
 
@@ -21,18 +44,24 @@ const platforms = [
   { x: 1370, y: 435, w: 310, h: 30 },
   { x: 1770, y: 360, w: 260, h: 30 },
   { x: 2110, y: 455, w: 390, h: 85 },
+  { x: 2570, y: 405, w: 220, h: 30 },
+  { x: 2920, y: 335, w: 250, h: 30 },
+  { x: 3250, y: 455, w: 150, h: 85 },
   { x: 420, y: 320, w: 180, h: 24 },
   { x: 780, y: 240, w: 150, h: 24 },
   { x: 1180, y: 180, w: 180, h: 24 },
   { x: 1530, y: 265, w: 160, h: 24 },
   { x: 1970, y: 185, w: 150, h: 24 },
+  { x: 2670, y: 260, w: 150, h: 24 },
+  { x: 3050, y: 190, w: 150, h: 24 },
 ];
 
 const coinSpots = [
   [180, 420], [280, 420], [455, 265], [520, 265], [730, 370],
   [820, 190], [1060, 290], [1150, 290], [1240, 130], [1450, 385],
   [1570, 215], [1810, 310], [1910, 310], [2020, 135], [2220, 405],
-  [2320, 405], [2420, 405],
+  [2320, 405], [2420, 405], [2630, 350], [2730, 350], [2990, 280],
+  [3090, 280], [3310, 405],
 ];
 
 const enemySpots = [
@@ -40,24 +69,29 @@ const enemySpots = [
   { x: 1090, y: 310, left: 1010, right: 1290, speed: 0.8 },
   { x: 1490, y: 405, left: 1370, right: 1680, speed: 0.65 },
   { x: 2190, y: 425, left: 2110, right: 2480, speed: 0.9 },
+  { x: 2630, y: 375, left: 2570, right: 2790, speed: 0.7 },
+  { x: 2990, y: 305, left: 2920, right: 3170, speed: 0.75 },
 ];
 
-const goal = { x: 2390, y: 405, w: 42, h: 50 };
+const goal = { x: 3300, y: 405, w: 42, h: 50 };
 let player;
 let coins;
 let enemies;
 let cameraX;
 let lives;
 let gameState;
+let paused;
 let lastTime = 0;
 
 function resetGame() {
-  player = { x: 80, y: 420, w: 28, h: 42, vx: 0, vy: 0, grounded: false, facing: 1 };
+  player = { x: 80, y: 420, w: 28, h: 42, vx: 0, vy: 0, grounded: false, facing: 1, bounceCount: 0 };
   coins = coinSpots.map(([x, y]) => ({ x, y, collected: false, bob: Math.random() * Math.PI * 2 }));
   enemies = enemySpots.map((enemy) => ({ ...enemy, y: enemy.y, w: 30, h: 30, direction: 1 }));
   cameraX = 0;
   lives = 3;
   gameState = "playing";
+  paused = false;
+  pauseButton.textContent = "Pause";
   message.classList.add("is-hidden");
   updateHud();
 }
@@ -73,7 +107,7 @@ function isDown(...names) {
 }
 
 function update(delta) {
-  if (gameState !== "playing") return;
+  if (gameState !== "playing" || paused) return;
 
   const move = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
   player.vx += move * 0.7 * delta;
@@ -95,8 +129,13 @@ function update(delta) {
       && player.y + player.h - player.vy * delta <= platform.y;
     if (fallingIntoPlatform) {
       player.y = platform.y - player.h;
-      player.vy = 0;
       player.grounded = true;
+      if (player.bounceCount === 0) {
+        player.vy = -2.2;
+        player.bounceCount = 1;
+      } else {
+        player.vy = 0;
+      }
     }
   }
 
@@ -138,6 +177,7 @@ function loseLife() {
   player.y = 420;
   player.vx = 0;
   player.vy = 0;
+  player.bounceCount = 0;
 }
 
 function finishGame() {
@@ -232,35 +272,57 @@ function drawGoal() {
 }
 
 function drawPlayer() {
+  if (playerSprite) {
+    ctx.drawImage(playerSprite, player.x - 12, player.y - 7, 52, 52);
+    return;
+  }
+
   ctx.fillStyle = "#7de2d1";
   ctx.fillRect(player.x, player.y + 9, player.w, player.h - 9);
   ctx.fillStyle = "#f8c8a9";
   ctx.beginPath();
   ctx.arc(player.x + player.w / 2, player.y + 9, 11, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#18243d";
-  ctx.fillRect(player.x + (player.facing > 0 ? 17 : 6), player.y + 6, 4, 4);
-  ctx.fillStyle = "#ffcf4a";
-  ctx.fillRect(player.x + 4, player.y + player.h - 4, 8, 4);
-  ctx.fillRect(player.x + 17, player.y + player.h - 4, 8, 4);
 }
 
 function jump() {
   if (gameState === "playing" && player.grounded) {
     player.vy = -11.5;
     player.grounded = false;
+    player.bounceCount = 0;
+  }
+}
+
+function togglePause() {
+  if (gameState !== "playing") return;
+  paused = !paused;
+  pauseButton.textContent = paused ? "Resume" : "Pause";
+  if (paused) {
+    showMessage("PAUSED", "Take a breather.", "Press P or tap Resume when you are ready.");
+    restartButton.textContent = "Resume";
+  } else {
+    message.classList.add("is-hidden");
+    restartButton.textContent = "Play again";
   }
 }
 
 window.addEventListener("keydown", (event) => {
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
   if (event.key.toLowerCase() === "r") resetGame();
+  if (!event.repeat && event.key.toLowerCase() === "p") togglePause();
   if (!event.repeat && ["ArrowUp", "w", "W", " "].includes(event.key)) jump();
   keys.add(event.key);
 });
 
 window.addEventListener("keyup", (event) => keys.delete(event.key));
-restartButton.addEventListener("click", resetGame);
+restartButton.addEventListener("click", () => {
+  if (paused) {
+    togglePause();
+  } else {
+    resetGame();
+  }
+});
+pauseButton.addEventListener("click", togglePause);
 
 function frame(time) {
   const delta = Math.min((time - lastTime) / 16.67 || 1, 2);

@@ -141,6 +141,19 @@ button:hover {
   transform: translateY(-2px);
 }
 
+.pause-button {
+  margin: 0 0 0 4px;
+  padding: 4px 9px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: rgba(30, 45, 70, 0.9);
+  font: 500 0.72rem "DM Mono", monospace;
+}
+
+.pause-button:hover {
+  color: #172033;
+}
+
 .controls {
   display: flex;
   justify-content: center;
