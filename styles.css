@@ -28,6 +28,79 @@ body {
   font-family: "Space Grotesk", sans-serif;
 }
 
+.startup-screen {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(122, 49, 104, 0.4), transparent 36%),
+    #070d18;
+}
+
+.startup-panel {
+  width: min(520px, 100%);
+  padding: 38px 30px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.startup-panel h1 {
+  margin: 8px 0 22px;
+}
+
+.loading-track {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: #101b31;
+}
+
+.loading-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7de2d1, var(--accent));
+  transition: width 180ms ease;
+}
+
+.loading-status {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font: 400 0.75rem "DM Mono", monospace;
+}
+
+.splash-panel {
+  background: radial-gradient(circle at 50% 35%, rgba(122, 49, 104, 0.34), rgba(15, 23, 42, 0.94) 64%);
+}
+
+.logo-image {
+  display: block;
+  width: min(270px, 75%);
+  height: 190px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
+.splash-panel p:not(.eyebrow) {
+  margin: -12px 0 0;
+  color: var(--muted);
+}
+
+.startup-screen.is-hidden {
+  display: none;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
 .game-shell {
   width: min(1120px, 100%);
 }

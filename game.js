@@ -12,12 +12,21 @@ const continueButton = document.querySelector("#continue-button");
 const level3Button = document.querySelector("#level-3-button");
 const level4Button = document.querySelector("#level-4-button");
 const pauseButton = document.querySelector("#pause-button");
+const startupScreen = document.querySelector("#startup-screen");
+const loadingPanel = document.querySelector("#loading-panel");
+const splashPanel = document.querySelector("#splash-panel");
+const loadingBar = document.querySelector("#loading-bar");
+const loadingStatus = document.querySelector("#loading-status");
+const logoImage = document.querySelector("#logo-image");
+const startButton = document.querySelector("#start-button");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const keys = new Set();
 const spaceBackground = new Image();
 spaceBackground.src = "assets/level-2-space.png";
+const logoSource = new Image();
+let processedLogo;
 let playerSprite;
 
 const playerImage = new Image();
@@ -55,6 +64,43 @@ monsterImage.addEventListener("load", () => {
   }
   spriteContext.putImageData(imageData, 0, 0);
   monsterSprite = spriteCanvas;
+});
+
+logoSource.src = "assets/bounce-back-logo.png";
+logoSource.addEventListener("load", () => {
+  const logoCanvas = document.createElement("canvas");
+  logoCanvas.width = 380;
+  logoCanvas.height = 350;
+  const logoContext = logoCanvas.getContext("2d", { willReadFrequently: true });
+  logoContext.drawImage(logoSource, 490, 205, 390, 355, 0, 0, 380, 350);
+  const imageData = logoContext.getImageData(0, 0, 380, 350);
+  const { data } = imageData;
+  const isDark = (index) => data[index] < 35 && data[index + 1] < 35 && data[index + 2] < 35;
+  const visited = new Uint8Array(380 * 350);
+  const stack = [];
+
+  for (let x = 0; x < 380; x += 1) stack.push([x, 0], [x, 349]);
+  for (let y = 0; y < 350; y += 1) stack.push([0, y], [379, y]);
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    const position = y * 380 + x;
+    if (visited[position]) continue;
+    visited[position] = 1;
+    const index = position * 4;
+    if (isDark(index)) {
+      data[index + 3] = 0;
+      if (x > 0) stack.push([x - 1, y]);
+      if (x < 379) stack.push([x + 1, y]);
+      if (y > 0) stack.push([x, y - 1]);
+      if (y < 349) stack.push([x, y + 1]);
+    }
+  }
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) data[index + 3] = 0;
+  }
+  logoContext.putImageData(imageData, 0, 0);
+  processedLogo = logoCanvas.toDataURL();
+  logoImage.src = processedLogo;
 });
 
 const levels = [
@@ -633,5 +679,43 @@ function frame(time) {
   requestAnimationFrame(frame);
 }
 
-loadLevel(0);
-requestAnimationFrame(frame);
+function preloadAssets() {
+  const assets = [
+    ["Star player", "assets/star-player.png"],
+    ["Purple monsters", "assets/purple-monster.png"],
+    ["Space background", "assets/level-2-space.png"],
+    ["Bounce Back logo", "assets/bounce-back-logo.png"],
+  ];
+  let loaded = 0;
+  const updateProgress = (label) => {
+    loaded += 1;
+    loadingBar.style.width = `${(loaded / assets.length) * 100}%`;
+    loadingStatus.textContent = loaded === assets.length ? "Ready to launch!" : `Loading ${label}...`;
+  };
+
+  assets.forEach(([label, source]) => {
+    const image = new Image();
+    image.addEventListener("load", () => updateProgress(label), { once: true });
+    image.addEventListener("error", () => updateProgress(`${label} (fallback)`), { once: true });
+    image.src = source;
+  });
+
+  const finishLoading = () => {
+    if (loaded !== assets.length) {
+      window.setTimeout(finishLoading, 50);
+      return;
+    }
+    loadingPanel.classList.add("is-hidden");
+    splashPanel.classList.remove("is-hidden");
+  };
+  finishLoading();
+}
+
+function startGame() {
+  startupScreen.classList.add("is-hidden");
+  loadLevel(0);
+  requestAnimationFrame(frame);
+}
+
+startButton.addEventListener("click", startGame, { once: true });
+preloadAssets();

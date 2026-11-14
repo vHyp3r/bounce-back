@@ -7,6 +7,22 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <section id="startup-screen" class="startup-screen" aria-label="Game startup">
+      <div id="loading-panel" class="startup-panel">
+        <p class="eyebrow">BOUNCE BACK!</p>
+        <h1>Loading adventure...</h1>
+        <div class="loading-track" aria-hidden="true">
+          <div id="loading-bar" class="loading-bar"></div>
+        </div>
+        <p id="loading-status" class="loading-status">Preparing the stars...</p>
+      </div>
+      <div id="splash-panel" class="startup-panel splash-panel is-hidden">
+        <img id="logo-image" class="logo-image" alt="Bounce Back logo" />
+        <h1>Bounce Back!</h1>
+        <p>A Hack Club Haven Exclusive!</p>
+        <button id="start-button" type="button">Start game</button>
+      </div>
+    </section>
     <main class="game-shell">
       <header class="topbar">
         <div>
