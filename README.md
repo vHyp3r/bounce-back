@@ -15,7 +15,7 @@ Then visit `http://localhost:8000`.
 ## Controls
 
 - `A` / `D` or `←` / `→` to move
-- `W`, `↑`, or `Space` to jump
+- `W`, `↑`, or `Space` to jump (press twice for a double jump)
 - `P` or the Pause button to pause/resume
 - `R` to restart
 - Reach the flags to activate checkpoints. Losing a life returns you to the latest flag.

@@ -157,6 +157,10 @@ button {
   color: #172033;
 }
 
+.level-choice.is-hidden {
+  display: none;
+}
+
 button:hover {
   background: #ffe28a;
   transform: translateY(-2px);
