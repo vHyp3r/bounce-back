@@ -41,6 +41,8 @@ const laserImage = new Image();
 const deepSpaceImage = new Image();
 const starRocketImage = new Image();
 const congratulationsImage = new Image();
+const regularMusic = new Audio("assets/Monkeys%20Spinning%20Monkeys.mp3");
+const bossMusic = new Audio("assets/02.%20Leaving%20The%20Solar%20System.mp3");
 let processedLogo;
 let logoReady = false;
 let playerSprite;
@@ -357,10 +359,29 @@ let checkpointIndex;
 let gameState;
 let paused;
 let lastTime = 0;
+let currentMusic;
+
+regularMusic.loop = true;
+bossMusic.loop = true;
+regularMusic.volume = 0.35;
+bossMusic.volume = 0.35;
+
+function playMusicForLevel(index) {
+  const nextMusic = index === 5 ? bossMusic : regularMusic;
+  if (currentMusic !== nextMusic) {
+    currentMusic?.pause();
+    nextMusic.currentTime = 0;
+    currentMusic = nextMusic;
+  }
+  currentMusic.play().catch((error) => {
+    console.error("Could not start level music.", error);
+  });
+}
 
 function loadLevel(index, preserveCoins = false) {
   levelIndex = index;
   level = levels[levelIndex];
+  playMusicForLevel(levelIndex);
   player = {
     x: 80, y: 420, w: 28, h: 42, vx: 0, vy: 0, grounded: false, facing: 1,
     bounceCount: 0, jumps: 0, portalCooldown: 0, meteorAmmo: 0,
@@ -998,10 +1019,12 @@ function togglePause() {
   paused = !paused;
   pauseButton.textContent = paused ? "Resume" : "Pause";
   if (paused) {
+    currentMusic?.pause();
     showMessage("PAUSED", "Take a breather.", "Press P or tap Resume when ready.", false);
     restartButton.textContent = "Resume";
     levelSelectButton.style.display = "none";
   } else {
+    playMusicForLevel(levelIndex);
     message.classList.add("is-hidden");
     restartButton.textContent = "Restart level";
     levelSelectButton.style.display = "inline-block";
@@ -1099,6 +1122,7 @@ function startGame(openLevelSelect = false) {
 }
 
 function goHome() {
+  currentMusic?.pause();
   startupScreen.classList.remove("is-hidden");
   loadingPanel.classList.add("is-hidden");
   splashPanel.classList.remove("is-hidden");
