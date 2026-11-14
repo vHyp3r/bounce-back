@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bounce Back!</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ARCADE PLATFORMER</p>
+          <h1>Bounce Back!</h1>
+        </div>
+        <div class="scoreboard" aria-label="Game score">
+          <span>COINS <strong id="coin-count">0/0</strong></span>
+          <span>LIVES <strong id="life-count">3</strong></span>
+        </div>
+      </header>
+
+      <section class="game-frame" aria-label="Bounce Back! game">
+        <canvas id="game" width="960" height="540">
+          Your browser does not support canvas. Please use a modern browser to play.
+        </canvas>
+        <div id="game-message" class="game-message is-hidden" role="status">
+          <p id="message-kicker">LEVEL COMPLETE</p>
+          <h2 id="message-title">You made it!</h2>
+          <p id="message-copy">Press R or tap the button to run it back.</p>
+          <button id="restart-button" type="button">Play again</button>
+        </div>
+      </section>
+
+      <footer class="controls">
+        <span><kbd>A</kbd><kbd>D</kbd> or <kbd>←</kbd><kbd>→</kbd> Move</span>
+        <span><kbd>W</kbd>, <kbd>↑</kbd> or <kbd>Space</kbd> Jump</span>
+        <span><kbd>R</kbd> Restart</span>
+      </footer>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
