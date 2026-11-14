@@ -20,6 +20,9 @@ Then visit `http://localhost:8000`.
 - `R` to restart
 - Reach the flags to activate checkpoints. Losing a life returns you to the latest flag.
 - Complete a level to restart it, open level select, or continue to the next level.
-- In the Void Eye boss fight, collect meteors and press `Space` to throw them at the eye.
+- Levels unlock in order and remain available in Level Select after you complete them.
+- In Rocket Launch, steer with `A`/`D` or `←`/`→` and use `W`/`↑` to climb.
+- In the Void Eye boss fight, collect meteors and press `Space` to throw them at the moving eye.
+- The eye's laser is dangerous; collected meteors refresh after the full field is collected.
 
 Collect the coins, avoid the red enemies, and reach the yellow flag.

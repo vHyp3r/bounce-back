@@ -290,6 +290,31 @@ button {
   display: none;
 }
 
+.meteor-hud {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 2;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 207, 74, 0.45);
+  border-radius: 9px;
+  color: #fff1a6;
+  background: rgba(25, 9, 54, 0.85);
+  font: 500 0.72rem "DM Mono", monospace;
+}
+
+.meteor-hud.is-hidden {
+  display: none;
+}
+
+.congratulations-image {
+  display: block;
+  width: min(700px, 90%);
+  max-height: 190px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
 button:hover {
   background: #ffe28a;
   transform: translateY(-2px);

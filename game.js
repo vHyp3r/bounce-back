@@ -13,6 +13,7 @@ const level3Button = document.querySelector("#level-3-button");
 const level4Button = document.querySelector("#level-4-button");
 const level5Button = document.querySelector("#level-5-button");
 const level6Button = document.querySelector("#level-6-button");
+const homeButton = document.querySelector("#home-button");
 const pauseButton = document.querySelector("#pause-button");
 const startupScreen = document.querySelector("#startup-screen");
 const loadingPanel = document.querySelector("#loading-panel");
@@ -25,6 +26,9 @@ const splashLevelSelectButton = document.querySelector("#splash-level-select-but
 const bossHud = document.querySelector("#boss-hud");
 const bossBar = document.querySelector("#boss-bar");
 const bossCount = document.querySelector("#boss-count");
+const meteorHud = document.querySelector("#meteor-hud");
+const meteorCount = document.querySelector("#meteor-count");
+const congratulationsImageElement = document.querySelector("#congratulations-image");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
@@ -36,11 +40,14 @@ const rocketImage = new Image();
 const eyeImage = new Image();
 const laserImage = new Image();
 const deepSpaceImage = new Image();
+const starRocketImage = new Image();
+const congratulationsImage = new Image();
 let processedLogo;
 let logoReady = false;
 let playerSprite;
 let rocketSprite;
 let eyeSprite;
+let starRocketSprite;
 let animationTime = 0;
 let bossHealth = 10;
 let meteors;
@@ -48,7 +55,9 @@ let meteorShots;
 let laserActive = false;
 let levelStartTime = 0;
 let laserTimer = 0;
-
+let rocketVerticalVelocity = 0;
+let bossX = 760;
+let bossY = 120;
 const playerImage = new Image();
 playerImage.src = "assets/star-player.png";
 playerImage.addEventListener("load", () => {
@@ -112,10 +121,47 @@ eyeImage.addEventListener("load", () => {
     eyeSprite = sprite;
   });
 });
+starRocketImage.addEventListener("load", () => {
+  createTransparentCrop(starRocketImage, [0, 150, 710, 390], 360, 200, (sprite) => {
+    starRocketSprite = sprite;
+  });
+});
 rocketImage.src = "assets/rocket.png";
 eyeImage.src = "assets/eye.png";
 laserImage.src = "assets/laser-beam.png";
 deepSpaceImage.src = "assets/deep-space.png";
+starRocketImage.src = "assets/star-rocket.png";
+congratulationsImage.addEventListener("load", () => {
+  const imageCanvas = document.createElement("canvas");
+  imageCanvas.width = 900;
+  imageCanvas.height = 506;
+  const imageContext = imageCanvas.getContext("2d", { willReadFrequently: true });
+  imageContext.drawImage(congratulationsImage, 0, 0, 900, 506);
+  const imageData = imageContext.getImageData(0, 0, 900, 506);
+  const { data } = imageData;
+  const visited = new Uint8Array(900 * 506);
+  const stack = [];
+  const isWhite = (index) => data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245;
+  for (let x = 0; x < 900; x += 1) stack.push([x, 0], [x, 505]);
+  for (let y = 0; y < 506; y += 1) stack.push([0, y], [899, y]);
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    const position = y * 900 + x;
+    if (visited[position]) continue;
+    visited[position] = 1;
+    const index = position * 4;
+    if (isWhite(index)) {
+      data[index + 3] = 0;
+      if (x > 0) stack.push([x - 1, y]);
+      if (x < 899) stack.push([x + 1, y]);
+      if (y > 0) stack.push([x, y - 1]);
+      if (y < 505) stack.push([x, y + 1]);
+    }
+  }
+  imageContext.putImageData(imageData, 0, 0);
+  congratulationsImageElement.src = imageCanvas.toDataURL();
+});
+congratulationsImage.src = "assets/congratulations.png";
 
 logoSource.addEventListener("load", () => {
   const logoCanvas = document.createElement("canvas");
@@ -269,7 +315,7 @@ const levels = [
     name: "Rocket Launch",
     worldWidth: 1800,
     platforms: [[0, 475, 1800, 65]],
-    coins: [[260, 420], [540, 350], [820, 280], [1100, 210], [1380, 140]],
+    coins: [],
     enemies: [],
     checkpoints: [{ x: 0, y: 433 }],
     slopes: [],
@@ -295,6 +341,10 @@ const levels = [
   },
 ];
 
+const storedUnlockedLevel = Number.parseInt(localStorage.getItem("bounce-back-unlocked-level") || "0", 10);
+let unlockedLevel = Number.isFinite(storedUnlockedLevel)
+  ? Math.max(0, Math.min(levels.length - 1, storedUnlockedLevel))
+  : 0;
 let levelIndex = 0;
 let level;
 let player;
@@ -327,7 +377,10 @@ function loadLevel(index, preserveCoins = false) {
   bossHealth = 10;
   laserTimer = 0;
   laserActive = false;
+  bossX = 760;
+  bossY = 120;
   levelStartTime = animationTime;
+  rocketVerticalVelocity = 0;
   level.movingPlatforms = (level.movingPlatforms || []).map((platform) => ({
     ...platform, baseX: platform.x, baseY: platform.y, time: 0,
   }));
@@ -345,7 +398,11 @@ function loadLevel(index, preserveCoins = false) {
   level4Button.classList.add("is-hidden");
   level5Button.classList.add("is-hidden");
   level6Button.classList.add("is-hidden");
+  homeButton.classList.add("is-hidden");
+  congratulationsImageElement.classList.add("is-hidden");
   bossHud.classList.toggle("is-hidden", !level.boss);
+  meteorHud.classList.toggle("is-hidden", !level.boss);
+  updateMeteorHud();
   updateBossHud();
   message.classList.add("is-hidden");
   updateHud();
@@ -482,29 +539,39 @@ function overlaps(a, b) {
 
 function updateRocketLevel(delta) {
   const move = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
+  const thrust = isDown("ArrowUp", "w", "W") ? 1 : 0;
+  player.facing = move || player.facing;
   player.vx += move * 0.4 * delta;
   player.vx *= Math.pow(0.9, delta);
   player.x += player.vx * delta;
   player.x = Math.max(50, Math.min(level.worldWidth - 80, player.x));
-  player.y = 355 - Math.min(280, (animationTime - levelStartTime) * 0.035);
+  rocketVerticalVelocity += (thrust ? -0.24 : 0.12) * delta;
+  rocketVerticalVelocity = Math.max(-6, Math.min(6, rocketVerticalVelocity));
+  player.y += rocketVerticalVelocity * delta;
+  player.y = Math.max(60, Math.min(420, player.y));
   if (player.y <= 75) finishGame();
 }
 
 function updateBossLevel(delta) {
   const horizontal = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
   const vertical = (isDown("ArrowDown", "s", "S") ? 1 : 0) - (isDown("ArrowUp", "w", "W") ? 1 : 0);
+  player.facing = horizontal || player.facing;
   player.x = Math.max(25, Math.min(WIDTH - player.w - 25, player.x + horizontal * 5 * delta));
   player.y = Math.max(70, Math.min(HEIGHT - player.h - 25, player.y + vertical * 5 * delta));
+  const bossMotion = animationTime % 4000;
+  bossX = 650 + Math.sin(bossMotion / 4000 * Math.PI * 2) * 170;
+  bossY = 105 + Math.sin(bossMotion / 4000 * Math.PI * 4) * 65;
 
   for (const meteor of meteors) {
     if (!meteor.collected && overlaps(player, meteor)) {
       meteor.collected = true;
       player.meteorAmmo = (player.meteorAmmo || 0) + 1;
+      updateMeteorHud();
     }
   }
   for (const shot of meteorShots) {
     shot.x += shot.vx * delta;
-    if (overlaps(shot, { x: 760, y: 120, w: 100, h: 100 })) {
+    if (overlaps(shot, { x: bossX, y: bossY, w: 100, h: 100 })) {
       bossHealth -= 1;
       shot.hit = true;
       updateBossHud();
@@ -512,21 +579,29 @@ function updateBossLevel(delta) {
     }
   }
   meteorShots = meteorShots.filter((shot) => !shot.hit && shot.x < WIDTH + 40);
+  if (meteors.every((meteor) => meteor.collected)) {
+    meteors.forEach((meteor) => { meteor.collected = false; });
+  }
 
   laserTimer += delta * 16.67;
   laserActive = laserTimer % 5000 > 3800;
-  if (laserActive && overlaps(player, { x: 0, y: 166, w: 760, h: 52 })) loseLife();
+  if (laserActive && overlaps(player, { x: 0, y: bossY + 38, w: WIDTH, h: 24 })) loseLife();
 }
 
 function throwMeteor() {
   if (gameState !== "playing" || paused || !level.boss || !player.meteorAmmo) return;
   player.meteorAmmo -= 1;
+  updateMeteorHud();
   meteorShots.push({ x: player.x + player.w, y: player.y + player.h / 2, w: 18, h: 18, vx: 8, hit: false });
 }
 
 function updateBossHud() {
   bossBar.style.width = `${Math.max(0, bossHealth) * 10}%`;
   bossCount.textContent = `${Math.max(0, bossHealth)}/10`;
+}
+
+function updateMeteorHud() {
+  meteorCount.textContent = player?.meteorAmmo || 0;
 }
 
 function loseLife() {
@@ -559,8 +634,19 @@ function loseLife() {
 
 function finishGame() {
   gameState = "won";
+  if (levelIndex === unlockedLevel && levelIndex < levels.length - 1) {
+    unlockedLevel += 1;
+    localStorage.setItem("bounce-back-unlocked-level", String(unlockedLevel));
+  }
   const collected = coins.filter((coin) => coin.collected).length;
-  showMessage("LEVEL COMPLETE", `${level.name} cleared!`, `${collected}/${coins.length} coins collected.`);
+  if (level.boss) {
+    congratulationsImageElement.classList.remove("is-hidden");
+    showMessage("CONGRATULATIONS!", "You completed every level!", "Thanks for playing Bounce Back! <3");
+    homeButton.classList.remove("is-hidden");
+    continueButton.style.display = "none";
+  } else {
+    showMessage("LEVEL COMPLETE", `${level.name} cleared!`, `${collected}/${coins.length} coins collected.`);
+  }
 }
 
 function showMessage(kicker, title, copy, showContinue = true) {
@@ -573,6 +659,7 @@ function showMessage(kicker, title, copy, showContinue = true) {
 
 function showLevelSelect() {
   gameState = "menu";
+  congratulationsImageElement.classList.add("is-hidden");
   showMessage("LEVEL SELECT", "Choose your route", "Start a level below.", false);
   restartButton.textContent = "Level 1";
   levelSelectButton.textContent = "Level 2";
@@ -580,10 +667,12 @@ function showLevelSelect() {
   level4Button.textContent = "Level 4";
   level5Button.textContent = "Level 5";
   level6Button.textContent = "Level 6";
-  level3Button.classList.remove("is-hidden");
-  level4Button.classList.remove("is-hidden");
-  level5Button.classList.remove("is-hidden");
-  level6Button.classList.remove("is-hidden");
+  levelSelectButton.classList.toggle("is-hidden", unlockedLevel < 1);
+  level3Button.classList.toggle("is-hidden", unlockedLevel < 2);
+  level4Button.classList.toggle("is-hidden", unlockedLevel < 3);
+  level5Button.classList.toggle("is-hidden", unlockedLevel < 4);
+  level6Button.classList.toggle("is-hidden", unlockedLevel < 5);
+  homeButton.classList.add("is-hidden");
   continueButton.style.display = "none";
 }
 
@@ -609,7 +698,7 @@ function draw() {
   enemies.forEach(drawEnemy);
   drawGoal();
   drawCheckpoints();
-  drawPlayer();
+  if (!level.rocket) drawPlayer();
   ctx.restore();
 }
 
@@ -748,31 +837,32 @@ function drawPortal(portal) {
 }
 
 function drawRocket() {
-  if (!rocketSprite) return;
+  const sprite = level.rocket ? starRocketSprite : rocketSprite;
+  if (!sprite) return;
   const flicker = 1 + Math.sin(animationTime * 0.02) * 0.08 + Math.sin(animationTime * 0.047) * 0.05;
   ctx.save();
   const rocketX = level.rocket ? player.x + player.w / 2 : 650;
-  const rocketY = level.rocket ? player.y + 35 : 330;
+  const rocketY = level.rocket ? player.y + 25 : 330;
   ctx.translate(rocketX, rocketY);
+  if (player.facing < 0 && level.rocket) ctx.scale(-1, 1);
   ctx.globalAlpha = 0.9;
-  ctx.drawImage(rocketSprite, -42, -125, 84, 185 * flicker);
   if (level.rocket) {
-    ctx.fillStyle = "rgba(25, 9, 54, 0.72)";
-    ctx.beginPath();
-    ctx.arc(0, -70, 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.drawImage(playerSprite, -18, -87, 36, 36);
+    ctx.drawImage(sprite, -100, -58, 200, 110 * flicker);
+  } else {
+    ctx.drawImage(sprite, -42, -125, 84, 185 * flicker);
+  }
+  if (level.rocket) {
+    ctx.fillStyle = "rgba(255, 207, 74, 0.7)";
+    ctx.fillRect(-8, -8, 16, 16);
   }
   ctx.restore();
 }
 
 function drawBossScene() {
-  const eyeX = 760;
-  const eyeY = 120;
-  if (eyeSprite) ctx.drawImage(eyeSprite, eyeX, eyeY, 100, 100);
+  if (eyeSprite) ctx.drawImage(eyeSprite, bossX, bossY, 100, 100);
   if (laserActive) {
     ctx.globalAlpha = 0.85;
-    ctx.drawImage(laserImage, 0, 166, eyeX, 52);
+    ctx.drawImage(laserImage, 0, bossY + 38, WIDTH, 52);
     ctx.globalAlpha = 1;
   }
   meteors.filter((meteor) => !meteor.collected).forEach((meteor) => {
@@ -912,13 +1002,13 @@ restartButton.addEventListener("click", () => {
   else resetLevel();
 });
 levelSelectButton.addEventListener("click", () => {
-  if (gameState === "menu") loadLevel(1);
+  if (gameState === "menu" && unlockedLevel >= 1) loadLevel(1);
   else showLevelSelect();
 });
-level3Button.addEventListener("click", () => loadLevel(2));
-level4Button.addEventListener("click", () => loadLevel(3));
-level5Button.addEventListener("click", () => loadLevel(4));
-level6Button.addEventListener("click", () => loadLevel(5));
+level3Button.addEventListener("click", () => { if (unlockedLevel >= 2) loadLevel(2); });
+level4Button.addEventListener("click", () => { if (unlockedLevel >= 3) loadLevel(3); });
+level5Button.addEventListener("click", () => { if (unlockedLevel >= 4) loadLevel(4); });
+level6Button.addEventListener("click", () => { if (unlockedLevel >= 5) loadLevel(5); });
 continueButton.addEventListener("click", () => {
   if (gameState === "won" && levelIndex < levels.length - 1) loadLevel(levelIndex + 1);
   else showLevelSelect();
@@ -944,6 +1034,8 @@ function preloadAssets() {
     ["Laser eye", "assets/eye.png"],
     ["Laser beam", "assets/laser-beam.png"],
     ["Deep space", "assets/deep-space.png"],
+    ["Star rocket", "assets/star-rocket.png"],
+    ["Congratulations", "assets/congratulations.png"],
   ];
   let loaded = 0;
   const updateProgress = (label) => {
@@ -977,6 +1069,18 @@ function startGame(openLevelSelect = false) {
   if (openLevelSelect) showLevelSelect();
 }
 
-startButton.addEventListener("click", startGame, { once: true });
-splashLevelSelectButton.addEventListener("click", () => startGame(true), { once: true });
+function goHome() {
+  startupScreen.classList.remove("is-hidden");
+  loadingPanel.classList.add("is-hidden");
+  splashPanel.classList.remove("is-hidden");
+  congratulationsImageElement.classList.add("is-hidden");
+  message.classList.add("is-hidden");
+  bossHud.classList.add("is-hidden");
+  meteorHud.classList.add("is-hidden");
+  gameState = "menu";
+}
+
+startButton.addEventListener("click", startGame);
+splashLevelSelectButton.addEventListener("click", () => startGame(true));
+homeButton.addEventListener("click", goHome);
 preloadAssets();
