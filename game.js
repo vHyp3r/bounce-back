@@ -37,7 +37,6 @@ const spaceBackground = new Image();
 spaceBackground.src = "assets/level-2-space.png";
 const logoSource = new Image();
 const rocketImage = new Image();
-const eyeImage = new Image();
 const laserImage = new Image();
 const deepSpaceImage = new Image();
 const starRocketImage = new Image();
@@ -46,7 +45,6 @@ let processedLogo;
 let logoReady = false;
 let playerSprite;
 let rocketSprite;
-let eyeSprite;
 let starRocketSprite;
 let animationTime = 0;
 let bossHealth = 10;
@@ -58,6 +56,10 @@ let laserTimer = 0;
 let rocketVerticalVelocity = 0;
 let bossX = 760;
 let bossY = 120;
+const bossWidth = 120;
+const bossHeight = 86;
+const laserHeight = 52;
+const laserCoreHeight = 18;
 const playerImage = new Image();
 playerImage.src = "assets/star-player.png";
 playerImage.addEventListener("load", () => {
@@ -116,18 +118,12 @@ rocketImage.addEventListener("load", () => {
     rocketSprite = sprite;
   });
 });
-eyeImage.addEventListener("load", () => {
-  createTransparentCrop(eyeImage, [245, 225, 300, 300], 260, 260, (sprite) => {
-    eyeSprite = sprite;
-  });
-});
 starRocketImage.addEventListener("load", () => {
   createTransparentCrop(starRocketImage, [0, 150, 710, 390], 360, 200, (sprite) => {
     starRocketSprite = sprite;
   });
 });
 rocketImage.src = "assets/rocket.png";
-eyeImage.src = "assets/eye.png";
 laserImage.src = "assets/laser-beam.png";
 deepSpaceImage.src = "assets/deep-space.png";
 starRocketImage.src = "assets/star-rocket.png";
@@ -164,39 +160,44 @@ congratulationsImage.addEventListener("load", () => {
 congratulationsImage.src = "assets/congratulations.png";
 
 logoSource.addEventListener("load", () => {
-  const logoCanvas = document.createElement("canvas");
-  logoCanvas.width = 380;
-  logoCanvas.height = 350;
-  const logoContext = logoCanvas.getContext("2d", { willReadFrequently: true });
-  logoContext.drawImage(logoSource, 490, 205, 390, 355, 0, 0, 380, 350);
-  const imageData = logoContext.getImageData(0, 0, 380, 350);
-  const { data } = imageData;
-  const isDark = (index) => data[index] < 35 && data[index + 1] < 35 && data[index + 2] < 35;
-  const visited = new Uint8Array(380 * 350);
-  const stack = [];
+  try {
+    const logoCanvas = document.createElement("canvas");
+    logoCanvas.width = 380;
+    logoCanvas.height = 350;
+    const logoContext = logoCanvas.getContext("2d", { willReadFrequently: true });
+    if (!logoContext) throw new Error("Unable to create the logo canvas.");
+    logoContext.drawImage(logoSource, 490, 205, 390, 355, 0, 0, 380, 350);
+    const imageData = logoContext.getImageData(0, 0, 380, 350);
+    const { data } = imageData;
+    const isDark = (index) => data[index] < 35 && data[index + 1] < 35 && data[index + 2] < 35;
+    const visited = new Uint8Array(380 * 350);
+    const stack = [];
 
-  for (let x = 0; x < 380; x += 1) stack.push([x, 0], [x, 349]);
-  for (let y = 0; y < 350; y += 1) stack.push([0, y], [379, y]);
-  while (stack.length) {
-    const [x, y] = stack.pop();
-    const position = y * 380 + x;
-    if (visited[position]) continue;
-    visited[position] = 1;
-    const index = position * 4;
-    if (isDark(index)) {
-      data[index + 3] = 0;
-      if (x > 0) stack.push([x - 1, y]);
-      if (x < 379) stack.push([x + 1, y]);
-      if (y > 0) stack.push([x, y - 1]);
-      if (y < 349) stack.push([x, y + 1]);
+    for (let x = 0; x < 380; x += 1) stack.push([x, 0], [x, 349]);
+    for (let y = 0; y < 350; y += 1) stack.push([0, y], [379, y]);
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      const position = y * 380 + x;
+      if (visited[position]) continue;
+      visited[position] = 1;
+      const index = position * 4;
+      if (isDark(index)) {
+        data[index + 3] = 0;
+        if (x > 0) stack.push([x - 1, y]);
+        if (x < 379) stack.push([x + 1, y]);
+        if (y > 0) stack.push([x, y - 1]);
+        if (y < 349) stack.push([x, y + 1]);
+      }
     }
+    for (let index = 0; index < data.length; index += 4) {
+      if (data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) data[index + 3] = 0;
+    }
+    logoContext.putImageData(imageData, 0, 0);
+    logoImage.src = logoCanvas.toDataURL();
+  } catch (error) {
+    console.error("Could not process the logo; using the original image.", error);
+    logoImage.src = "assets/bounce-back-logo.png";
   }
-  for (let index = 0; index < data.length; index += 4) {
-    if (data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) data[index + 3] = 0;
-  }
-  logoContext.putImageData(imageData, 0, 0);
-  processedLogo = logoCanvas.toDataURL();
-  logoImage.src = processedLogo;
   logoReady = true;
 });
 logoSource.addEventListener("error", () => {
@@ -571,28 +572,41 @@ function updateBossLevel(delta) {
   }
   for (const shot of meteorShots) {
     shot.x += shot.vx * delta;
-    if (overlaps(shot, { x: bossX, y: bossY, w: 100, h: 100 })) {
+    if (overlaps(shot, { x: bossX, y: bossY, w: bossWidth, h: bossHeight })) {
       bossHealth -= 1;
       shot.hit = true;
       updateBossHud();
       if (bossHealth <= 0) finishGame();
     }
   }
-  meteorShots = meteorShots.filter((shot) => !shot.hit && shot.x < WIDTH + 40);
+  meteorShots = meteorShots.filter((shot) => !shot.hit && shot.x > -40 && shot.x < WIDTH + 40);
   if (meteors.every((meteor) => meteor.collected)) {
     meteors.forEach((meteor) => { meteor.collected = false; });
   }
 
   laserTimer += delta * 16.67;
   laserActive = laserTimer % 5000 > 3800;
-  if (laserActive && overlaps(player, { x: 0, y: bossY + 38, w: WIDTH, h: 24 })) loseLife();
+  if (laserActive && overlaps(player, {
+    x: 0,
+    y: bossY + (bossHeight - laserCoreHeight) / 2,
+    w: WIDTH,
+    h: laserCoreHeight,
+  })) loseLife();
 }
 
 function throwMeteor() {
   if (gameState !== "playing" || paused || !level.boss || !player.meteorAmmo) return;
   player.meteorAmmo -= 1;
   updateMeteorHud();
-  meteorShots.push({ x: player.x + player.w, y: player.y + player.h / 2, w: 18, h: 18, vx: 8, hit: false });
+  const direction = player.facing < 0 ? -1 : 1;
+  meteorShots.push({
+    x: player.x + (direction > 0 ? player.w : -18),
+    y: player.y + player.h / 2,
+    w: 18,
+    h: 18,
+    vx: 8 * direction,
+    hit: false,
+  });
 }
 
 function updateBossHud() {
@@ -859,12 +873,12 @@ function drawRocket() {
 }
 
 function drawBossScene() {
-  if (eyeSprite) ctx.drawImage(eyeSprite, bossX, bossY, 100, 100);
   if (laserActive) {
     ctx.globalAlpha = 0.85;
-    ctx.drawImage(laserImage, 0, bossY + 38, WIDTH, 52);
+    ctx.drawImage(laserImage, 0, bossY + (bossHeight - laserHeight) / 2, WIDTH, laserHeight);
     ctx.globalAlpha = 1;
   }
+  drawBossEye();
   meteors.filter((meteor) => !meteor.collected).forEach((meteor) => {
     ctx.fillStyle = "#b9a2c9";
     ctx.beginPath();
@@ -882,20 +896,28 @@ function drawBossScene() {
   drawPlayer();
 }
 
-function drawEye() {
-  if (!eyeSprite) return;
-  const pulse = 0.5 + Math.sin(animationTime * 0.006) * 0.35;
-  const eyeX = 2650;
-  const eyeY = 130;
+function drawBossEye() {
+  const centerX = bossX + bossWidth / 2;
+  const centerY = bossY + bossHeight / 2;
   ctx.save();
-  ctx.globalAlpha = 0.22 + pulse * 0.25;
+  ctx.shadowColor = "rgba(255, 66, 208, 0.85)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#f3d9ff";
+  ctx.beginPath();
+  ctx.ellipse(centerX, centerY, bossWidth / 2, bossHeight / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ff42d0";
+  ctx.lineWidth = 6;
+  ctx.stroke();
   ctx.fillStyle = "#ff42d0";
-  ctx.fillRect(eyeX - 18, eyeY + 27, 170, 5);
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = "#ff72dc";
-  ctx.fillRect(eyeX + 5, eyeY + 29, 130 * pulse, 2);
-  ctx.globalAlpha = 1;
-  ctx.drawImage(eyeSprite, eyeX - 34, eyeY - 34, 68, 68);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#210b3c";
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 11, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -1031,7 +1053,6 @@ function preloadAssets() {
     ["Space background", "assets/level-2-space.png"],
     ["Bounce Back logo", "assets/bounce-back-logo.png"],
     ["Rocket", "assets/rocket.png"],
-    ["Laser eye", "assets/eye.png"],
     ["Laser beam", "assets/laser-beam.png"],
     ["Deep space", "assets/deep-space.png"],
     ["Star rocket", "assets/star-rocket.png"],
@@ -1051,8 +1072,16 @@ function preloadAssets() {
     image.src = source;
   });
 
+  const startedAt = performance.now();
   const finishLoading = () => {
     if (loaded !== assets.length || !logoReady) {
+      if (performance.now() - startedAt > 10000) {
+        console.error("Loading timed out; starting with the assets that are available.");
+        loadingStatus.textContent = "Some artwork could not load, but the game is ready.";
+        loadingPanel.classList.add("is-hidden");
+        splashPanel.classList.remove("is-hidden");
+        return;
+      }
       window.setTimeout(finishLoading, 50);
       return;
     }
