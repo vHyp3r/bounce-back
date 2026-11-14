@@ -11,6 +11,8 @@ const levelSelectButton = document.querySelector("#level-select-button");
 const continueButton = document.querySelector("#continue-button");
 const level3Button = document.querySelector("#level-3-button");
 const level4Button = document.querySelector("#level-4-button");
+const level5Button = document.querySelector("#level-5-button");
+const level6Button = document.querySelector("#level-6-button");
 const pauseButton = document.querySelector("#pause-button");
 const startupScreen = document.querySelector("#startup-screen");
 const loadingPanel = document.querySelector("#loading-panel");
@@ -20,6 +22,9 @@ const loadingStatus = document.querySelector("#loading-status");
 const logoImage = document.querySelector("#logo-image");
 const startButton = document.querySelector("#start-button");
 const splashLevelSelectButton = document.querySelector("#splash-level-select-button");
+const bossHud = document.querySelector("#boss-hud");
+const bossBar = document.querySelector("#boss-bar");
+const bossCount = document.querySelector("#boss-count");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
@@ -27,9 +32,22 @@ const keys = new Set();
 const spaceBackground = new Image();
 spaceBackground.src = "assets/level-2-space.png";
 const logoSource = new Image();
+const rocketImage = new Image();
+const eyeImage = new Image();
+const laserImage = new Image();
+const deepSpaceImage = new Image();
 let processedLogo;
 let logoReady = false;
 let playerSprite;
+let rocketSprite;
+let eyeSprite;
+let animationTime = 0;
+let bossHealth = 10;
+let meteors;
+let meteorShots;
+let laserActive = false;
+let levelStartTime = 0;
+let laserTimer = 0;
 
 const playerImage = new Image();
 playerImage.src = "assets/star-player.png";
@@ -67,6 +85,37 @@ monsterImage.addEventListener("load", () => {
   spriteContext.putImageData(imageData, 0, 0);
   monsterSprite = spriteCanvas;
 });
+
+function createTransparentCrop(image, crop, width, height, onReady) {
+  const spriteCanvas = document.createElement("canvas");
+  spriteCanvas.width = width;
+  spriteCanvas.height = height;
+  const spriteContext = spriteCanvas.getContext("2d", { willReadFrequently: true });
+  spriteContext.drawImage(image, ...crop, 0, 0, width, height);
+  const imageData = spriteContext.getImageData(0, 0, width, height);
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    if (imageData.data[index] > 245 && imageData.data[index + 1] > 245 && imageData.data[index + 2] > 245) {
+      imageData.data[index + 3] = 0;
+    }
+  }
+  spriteContext.putImageData(imageData, 0, 0);
+  onReady(spriteCanvas);
+}
+
+rocketImage.addEventListener("load", () => {
+  createTransparentCrop(rocketImage, [245, 70, 285, 635], 180, 400, (sprite) => {
+    rocketSprite = sprite;
+  });
+});
+eyeImage.addEventListener("load", () => {
+  createTransparentCrop(eyeImage, [245, 225, 300, 300], 260, 260, (sprite) => {
+    eyeSprite = sprite;
+  });
+});
+rocketImage.src = "assets/rocket.png";
+eyeImage.src = "assets/eye.png";
+laserImage.src = "assets/laser-beam.png";
+deepSpaceImage.src = "assets/deep-space.png";
 
 logoSource.addEventListener("load", () => {
   const logoCanvas = document.createElement("canvas");
@@ -216,6 +265,34 @@ const levels = [
     goal: [3370, 405],
     theme: "space",
   },
+  {
+    name: "Rocket Launch",
+    worldWidth: 1800,
+    platforms: [[0, 475, 1800, 65]],
+    coins: [[260, 420], [540, 350], [820, 280], [1100, 210], [1380, 140]],
+    enemies: [],
+    checkpoints: [{ x: 0, y: 433 }],
+    slopes: [],
+    jumpPads: [],
+    gravity: 0.18,
+    goal: [1660, 405],
+    theme: "launch",
+    rocket: true,
+  },
+  {
+    name: "Void Eye",
+    worldWidth: 960,
+    platforms: [],
+    coins: [],
+    enemies: [],
+    checkpoints: [{ x: 60, y: 250 }],
+    slopes: [],
+    jumpPads: [],
+    gravity: 0,
+    goal: [900, 250],
+    theme: "boss",
+    boss: true,
+  },
 ];
 
 let levelIndex = 0;
@@ -235,10 +312,22 @@ function loadLevel(index, preserveCoins = false) {
   level = levels[levelIndex];
   player = {
     x: 80, y: 420, w: 28, h: 42, vx: 0, vy: 0, grounded: false, facing: 1,
-    bounceCount: 0, jumps: 0, portalCooldown: 0,
+    bounceCount: 0, jumps: 0, portalCooldown: 0, meteorAmmo: 0,
   };
+  if (level.boss) {
+    player.x = 100;
+    player.y = 250;
+  }
   coins = level.coins.map(([x, y]) => ({ x, y, collected: preserveCoins && coins?.some((coin) => coin.x === x && coin.y === y && coin.collected), bob: Math.random() * Math.PI * 2 }));
   enemies = level.enemies.map(([x, y, left, right, speed]) => ({ x, y, left, right, speed, w: 30, h: 30, direction: 1 }));
+  meteors = level.boss ? Array.from({ length: 7 }, (_, index) => ({
+    x: 120 + index * 125, y: 120 + (index % 3) * 125, w: 18, h: 18, collected: false,
+  })) : [];
+  meteorShots = [];
+  bossHealth = 10;
+  laserTimer = 0;
+  laserActive = false;
+  levelStartTime = animationTime;
   level.movingPlatforms = (level.movingPlatforms || []).map((platform) => ({
     ...platform, baseX: platform.x, baseY: platform.y, time: 0,
   }));
@@ -254,6 +343,10 @@ function loadLevel(index, preserveCoins = false) {
   continueButton.style.display = "inline-block";
   level3Button.classList.add("is-hidden");
   level4Button.classList.add("is-hidden");
+  level5Button.classList.add("is-hidden");
+  level6Button.classList.add("is-hidden");
+  bossHud.classList.toggle("is-hidden", !level.boss);
+  updateBossHud();
   message.classList.add("is-hidden");
   updateHud();
 }
@@ -273,6 +366,14 @@ function isDown(...names) {
 
 function update(delta) {
   if (gameState !== "playing" || paused) return;
+  if (level.rocket) {
+    updateRocketLevel(delta);
+    return;
+  }
+  if (level.boss) {
+    updateBossLevel(delta);
+    return;
+  }
   const move = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
   player.vx += move * 0.7 * delta;
   player.vx *= Math.pow(0.82, delta);
@@ -379,6 +480,55 @@ function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+function updateRocketLevel(delta) {
+  const move = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
+  player.vx += move * 0.4 * delta;
+  player.vx *= Math.pow(0.9, delta);
+  player.x += player.vx * delta;
+  player.x = Math.max(50, Math.min(level.worldWidth - 80, player.x));
+  player.y = 355 - Math.min(280, (animationTime - levelStartTime) * 0.035);
+  if (player.y <= 75) finishGame();
+}
+
+function updateBossLevel(delta) {
+  const horizontal = (isDown("ArrowRight", "d", "D") ? 1 : 0) - (isDown("ArrowLeft", "a", "A") ? 1 : 0);
+  const vertical = (isDown("ArrowDown", "s", "S") ? 1 : 0) - (isDown("ArrowUp", "w", "W") ? 1 : 0);
+  player.x = Math.max(25, Math.min(WIDTH - player.w - 25, player.x + horizontal * 5 * delta));
+  player.y = Math.max(70, Math.min(HEIGHT - player.h - 25, player.y + vertical * 5 * delta));
+
+  for (const meteor of meteors) {
+    if (!meteor.collected && overlaps(player, meteor)) {
+      meteor.collected = true;
+      player.meteorAmmo = (player.meteorAmmo || 0) + 1;
+    }
+  }
+  for (const shot of meteorShots) {
+    shot.x += shot.vx * delta;
+    if (overlaps(shot, { x: 760, y: 120, w: 100, h: 100 })) {
+      bossHealth -= 1;
+      shot.hit = true;
+      updateBossHud();
+      if (bossHealth <= 0) finishGame();
+    }
+  }
+  meteorShots = meteorShots.filter((shot) => !shot.hit && shot.x < WIDTH + 40);
+
+  laserTimer += delta * 16.67;
+  laserActive = laserTimer % 5000 > 3800;
+  if (laserActive && overlaps(player, { x: 0, y: 166, w: 760, h: 52 })) loseLife();
+}
+
+function throwMeteor() {
+  if (gameState !== "playing" || paused || !level.boss || !player.meteorAmmo) return;
+  player.meteorAmmo -= 1;
+  meteorShots.push({ x: player.x + player.w, y: player.y + player.h / 2, w: 18, h: 18, vx: 8, hit: false });
+}
+
+function updateBossHud() {
+  bossBar.style.width = `${Math.max(0, bossHealth) * 10}%`;
+  bossCount.textContent = `${Math.max(0, bossHealth)}/10`;
+}
+
 function loseLife() {
   if (gameState !== "playing") return;
   lives -= 1;
@@ -386,6 +536,15 @@ function loseLife() {
   if (lives <= 0) {
     showMessage("RUN OVER", "The sky can wait.", "Your coins return when you restart the level.");
     gameState = "lost";
+    return;
+  }
+  if (level.boss) {
+    player.x = 100;
+    player.y = 250;
+    player.meteorAmmo = 0;
+    meteors.forEach((meteor) => { meteor.collected = false; });
+    meteorShots = [];
+    laserTimer = 0;
     return;
   }
   const checkpoint = level.checkpoints[checkpointIndex];
@@ -419,8 +578,12 @@ function showLevelSelect() {
   levelSelectButton.textContent = "Level 2";
   level3Button.textContent = "Level 3";
   level4Button.textContent = "Level 4";
+  level5Button.textContent = "Level 5";
+  level6Button.textContent = "Level 6";
   level3Button.classList.remove("is-hidden");
   level4Button.classList.remove("is-hidden");
+  level5Button.classList.remove("is-hidden");
+  level6Button.classList.remove("is-hidden");
   continueButton.style.display = "none";
 }
 
@@ -429,6 +592,11 @@ function draw() {
   drawBackground();
   ctx.save();
   ctx.translate(-cameraX, 0);
+  if (level.boss) {
+    drawBossScene();
+    ctx.restore();
+    return;
+  }
   if (level.theme === "space") drawSpaceDecorations();
   level.platforms.forEach(drawPlatform);
   level.movingPlatforms.forEach(drawMovingPlatform);
@@ -436,6 +604,7 @@ function draw() {
   level.jumpPads.forEach(drawJumpPad);
   (level.fans || []).forEach(drawFan);
   (level.portals || []).forEach(drawPortal);
+  if (level.rocket) drawRocket();
   coins.filter((coin) => !coin.collected).forEach(drawCoin);
   enemies.forEach(drawEnemy);
   drawGoal();
@@ -445,6 +614,12 @@ function draw() {
 }
 
 function drawBackground() {
+  if (level.theme === "boss") {
+    ctx.drawImage(deepSpaceImage, 0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = "rgba(12, 3, 25, 0.2)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    return;
+  }
   if (level.theme === "space" && spaceBackground.complete) {
     ctx.globalAlpha = 0.72;
     ctx.drawImage(spaceBackground, 0, 0, WIDTH, HEIGHT);
@@ -572,6 +747,68 @@ function drawPortal(portal) {
   ctx.stroke();
 }
 
+function drawRocket() {
+  if (!rocketSprite) return;
+  const flicker = 1 + Math.sin(animationTime * 0.02) * 0.08 + Math.sin(animationTime * 0.047) * 0.05;
+  ctx.save();
+  const rocketX = level.rocket ? player.x + player.w / 2 : 650;
+  const rocketY = level.rocket ? player.y + 35 : 330;
+  ctx.translate(rocketX, rocketY);
+  ctx.globalAlpha = 0.9;
+  ctx.drawImage(rocketSprite, -42, -125, 84, 185 * flicker);
+  if (level.rocket) {
+    ctx.fillStyle = "rgba(25, 9, 54, 0.72)";
+    ctx.beginPath();
+    ctx.arc(0, -70, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(playerSprite, -18, -87, 36, 36);
+  }
+  ctx.restore();
+}
+
+function drawBossScene() {
+  const eyeX = 760;
+  const eyeY = 120;
+  if (eyeSprite) ctx.drawImage(eyeSprite, eyeX, eyeY, 100, 100);
+  if (laserActive) {
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(laserImage, 0, 166, eyeX, 52);
+    ctx.globalAlpha = 1;
+  }
+  meteors.filter((meteor) => !meteor.collected).forEach((meteor) => {
+    ctx.fillStyle = "#b9a2c9";
+    ctx.beginPath();
+    ctx.arc(meteor.x, meteor.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffcf4a";
+    ctx.fillRect(meteor.x - 3, meteor.y - 3, 4, 4);
+  });
+  meteorShots.forEach((shot) => {
+    ctx.fillStyle = "#ffcf4a";
+    ctx.beginPath();
+    ctx.arc(shot.x, shot.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  drawPlayer();
+}
+
+function drawEye() {
+  if (!eyeSprite) return;
+  const pulse = 0.5 + Math.sin(animationTime * 0.006) * 0.35;
+  const eyeX = 2650;
+  const eyeY = 130;
+  ctx.save();
+  ctx.globalAlpha = 0.22 + pulse * 0.25;
+  ctx.fillStyle = "#ff42d0";
+  ctx.fillRect(eyeX - 18, eyeY + 27, 170, 5);
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = "#ff72dc";
+  ctx.fillRect(eyeX + 5, eyeY + 29, 130 * pulse, 2);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(eyeSprite, eyeX - 34, eyeY - 34, 68, 68);
+  ctx.restore();
+}
+
 function drawCoin(coin) {
   const y = coin.y + Math.sin(coin.bob) * 4;
   ctx.fillStyle = "#ffcf4a";
@@ -621,11 +858,18 @@ function drawCheckpoints() {
 }
 
 function drawPlayer() {
+  ctx.save();
+  if (player.facing < 0) {
+    ctx.translate(player.x + player.w / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(player.x + player.w / 2), 0);
+  }
   if (playerSprite) ctx.drawImage(playerSprite, player.x - 12, player.y - 7, 52, 52);
   else {
     ctx.fillStyle = "#7de2d1";
     ctx.fillRect(player.x, player.y + 9, player.w, player.h - 9);
   }
+  ctx.restore();
 }
 
 function jump() {
@@ -656,6 +900,7 @@ window.addEventListener("keydown", (event) => {
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
   if (event.key.toLowerCase() === "r") resetLevel();
   if (!event.repeat && event.key.toLowerCase() === "p") togglePause();
+  if (!event.repeat && event.key === " " && level?.boss) throwMeteor();
   if (!event.repeat && ["ArrowUp", "w", "W", " "].includes(event.key)) jump();
   keys.add(event.key);
 });
@@ -672,6 +917,8 @@ levelSelectButton.addEventListener("click", () => {
 });
 level3Button.addEventListener("click", () => loadLevel(2));
 level4Button.addEventListener("click", () => loadLevel(3));
+level5Button.addEventListener("click", () => loadLevel(4));
+level6Button.addEventListener("click", () => loadLevel(5));
 continueButton.addEventListener("click", () => {
   if (gameState === "won" && levelIndex < levels.length - 1) loadLevel(levelIndex + 1);
   else showLevelSelect();
@@ -679,6 +926,7 @@ continueButton.addEventListener("click", () => {
 pauseButton.addEventListener("click", togglePause);
 
 function frame(time) {
+  animationTime = time;
   const delta = Math.min((time - lastTime) / 16.67 || 1, 2);
   lastTime = time;
   update(delta);
@@ -692,6 +940,10 @@ function preloadAssets() {
     ["Purple monsters", "assets/purple-monster.png"],
     ["Space background", "assets/level-2-space.png"],
     ["Bounce Back logo", "assets/bounce-back-logo.png"],
+    ["Rocket", "assets/rocket.png"],
+    ["Laser eye", "assets/eye.png"],
+    ["Laser beam", "assets/laser-beam.png"],
+    ["Deep space", "assets/deep-space.png"],
   ];
   let loaded = 0;
   const updateProgress = (label) => {

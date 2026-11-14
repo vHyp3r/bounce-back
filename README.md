@@ -20,5 +20,6 @@ Then visit `http://localhost:8000`.
 - `R` to restart
 - Reach the flags to activate checkpoints. Losing a life returns you to the latest flag.
 - Complete a level to restart it, open level select, or continue to the next level.
+- In the Void Eye boss fight, collect meteors and press `Space` to throw them at the eye.
 
 Collect the coins, avoid the red enemies, and reach the yellow flag.
