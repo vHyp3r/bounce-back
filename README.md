@@ -4,6 +4,8 @@ A small browser platformer built with vanilla HTML, CSS, and JavaScript.
 
 ## Credits
 F-777 - "Leaving The Solar System"
+
+
 Kevin MacLeod - "Monkeys Spinning Monkeys"
 
 ## Run locally
